@@ -1,0 +1,48 @@
+name: Windows cygpath
+
+on:
+  push:
+    branches: [ "windows-cygpath" ]
+  pull_request:
+    branches: [ "windows-cygpath" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Print USERPROFILE
+        run: echo $USERPROFILE
+        shell: bash
+      - name: Save the Cygwin path of USERPROFILE to FOO
+        run: (echo 'FOO<<EOF' && cygpath -u $USERPROFILE && echo 'EOF') >> "$GITHUB_ENV"
+        shell: bash
+      - name: Print FOO
+        run: |
+          echo $FOO
+          echo ${{env.FOO}}
+        shell: bash
+      - name: Save the Cygwin path of USERPROFILE to BAR
+        run: echo BAR="$(cygpath -u $USERPROFILE)" >> "$GITHUB_ENV"
+        shell: bash
+      - name: Print BAR
+        run: |
+          echo $BAR
+          echo ${{env.BAR}}
+        shell: bash
+      - name: Set BAZ
+        id: cygwin_path_home
+        run: echo BAZ="$USERPROFILE" >> "$GITHUB_OUTPUT"
+        shell: bash
+      - name: Print BAZ
+        run: |
+          # NG
+          cygpath -u ${{steps.cygwin_path_home.outputs.BAZ}}
+          # OK
+          cygpath -u $BAZ
+        shell: bash
+        env:
+          BAZ: ${{steps.cygwin_path_home.outputs.BAZ}}
+      - name: Print HOME
+        run: echo $HOME
+        shell: bash
