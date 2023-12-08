@@ -1,0 +1,350 @@
+name: SSH agent on Windows
+
+on:
+  push:
+    branches: [ "windows-ssh-agent" ]
+  pull_request:
+    branches: [ "windows-ssh-agent" ]
+
+jobs:
+  clone_with_actions-checkout:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout private repository
+      uses: actions/checkout@v4
+      with:
+        repository: maroontress-tomohisa/private-repository-example
+        ssh-key: ${{secrets.PRIVATE_REPO_DEPLOY_KEY}}
+        path: private-repository-example
+    - name: Print README.md
+      shell: bash
+      run: |
+        cat private-repository-example/README.md
+
+  clone_with_ssh-agent:
+    runs-on: windows-latest
+
+    steps:
+    - name: Check commands
+      shell: bash
+      run: |
+        ls -l `which ssh`
+        ls -l `which ssh-add`
+        ls -l `which ssh-agent`
+        ls -l `which git`
+    - name: Start ssh-agent
+      shell: bash
+      run: |
+        eval `ssh-agent`
+        echo SSH_AUTH_SOCK="$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+        echo SSH_AGENT_PID="$SSH_AGENT_PID" >> "$GITHUB_ENV"
+    - name: Add a deploy key
+      shell: bash
+      run: |
+        mkdir -p $HOME/.ssh
+        echo "${{secrets.PRIVATE_REPO_DEPLOY_KEY}}" > $HOME/.ssh/PRIVATE_REPO_DEPLOY_KEY
+        ssh-add $HOME/.ssh/PRIVATE_REPO_DEPLOY_KEY
+    - name: List fingerprints
+      shell: bash
+      run: |
+        ssh-add -l
+    - name: Clone the private repository (which fails)
+      continue-on-error: true
+      shell: bash
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-repository-example.git
+        cat private-repository-example/README.md
+    - name: Perform workarounds (create ~/.ssh/known_hosts)
+      shell: bash
+      run: |
+        rm -rf private-repository-example
+        cat << EOF > $HOME/.ssh/known_hosts
+        github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+        EOF
+    - name: Clone a private repository
+      shell: bash
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-repository-example.git
+        cat private-repository-example/README.md
+
+  clone_lfs_repository_with_ssh-agent:
+    runs-on: windows-latest
+
+    steps:
+    - name: Start ssh-agent
+      shell: bash
+      run: |
+        mkdir -p $HOME/.ssh
+        cat << EOF > $HOME/.ssh/known_hosts
+        github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+        EOF
+        eval `ssh-agent`
+        echo SSH_AUTH_SOCK="$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+        echo SSH_AGENT_PID="$SSH_AGENT_PID" >> "$GITHUB_ENV"
+    - name: Add a deploy key
+      shell: bash
+      run: |
+        echo "${{secrets.PRIVATE_LFS_REPO_DEPLOY_KEY}}" > $HOME/.ssh/PRIVATE_LFS_REPO_DEPLOY_KEY
+        ssh-add $HOME/.ssh/PRIVATE_LFS_REPO_DEPLOY_KEY
+    - name: List fingerprints
+      shell: bash
+      run: |
+        ssh-add -l
+    - name: Clone a private repository with LFS
+      shell: bash
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-lfs-repository-example.git
+        cat private-lfs-repository-example/README.md
+        unzip -v private-lfs-repository-example/empty.zip
+
+  clone_lfs_repository_with_actions-checkout:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout private LFS repository
+      uses: actions/checkout@v4
+      with:
+        repository: maroontress-tomohisa/private-lfs-repository-example
+        ssh-key: ${{secrets.PRIVATE_LFS_REPO_DEPLOY_KEY}}
+        lfs: true
+        path: private-lfs-repository-example
+    - name: Print README.md and check empty.zip
+      shell: bash
+      run: |
+        cat private-lfs-repository-example/README.md
+        unzip -v private-lfs-repository-example/empty.zip
+
+  clone_multiple_repositories:
+    runs-on: windows-latest
+
+    steps:
+    - name: Create ~/.ssh/known_hosts
+      shell: bash
+      run: |
+        mkdir -p $HOME/.ssh
+        cat << EOF > $HOME/.ssh/known_hosts
+        github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+        EOF
+    - name: Add deploy keys
+      shell: bash
+      run: |
+        add_key() {
+          key="$HOME/.ssh/$1"
+          win_key="$(cygpath -w $key)"
+          echo "$2" > "$key"
+          ssh-keygen -y -f $key > $key.pub
+          read a b comment < $key.pub
+          echo comment: $comment
+          url="${comment%.*}"
+          echo url: $url
+          host_path="${url#*@}"
+          new_host_path="$1.${host_path}"
+          new_url="git@$new_host_path"
+          echo git config --global url."${new_url}".insteadOf "${url}"
+          git config --global url."${new_url}".insteadOf "${url}"
+          cat << EOF >> $HOME/.ssh/config
+
+        Host ${new_host_path%%:*}
+          HostName github.com
+          IdentityFile $win_key
+          IdentitiesOnly yes
+        EOF
+        }
+        add_key PRIVATE_REPO_DEPLOY_KEY "${{secrets.PRIVATE_REPO_DEPLOY_KEY}}"
+        add_key PRIVATE_LFS_REPO_DEPLOY_KEY "${{secrets.PRIVATE_LFS_REPO_DEPLOY_KEY}}"
+    - name: Print git config
+      shell: bash
+      run: git config --global --list
+    - name: Print ssh config
+      shell: bash
+      run: cat $HOME/.ssh/config
+    - name: Clone a private repository
+      shell: bash
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-repository-example.git
+        cat private-repository-example/README.md
+    - name: Clone another private repository with LFS
+      shell: bash
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-lfs-repository-example.git
+        cat private-lfs-repository-example/README.md
+        unzip -v private-lfs-repository-example/empty.zip
+
+  similar_step_as_webfactory:
+    runs-on: windows-latest
+
+    steps:
+    - name: Start ssh-agent
+      shell: bash
+      run: |
+        mkdir -p $HOME/.ssh
+        cat << EOF > $HOME/.ssh/known_hosts
+        github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+        EOF
+        eval `ssh-agent`
+        echo SSH_AUTH_SOCK="$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+        echo SSH_AGENT_PID="$SSH_AGENT_PID" >> "$GITHUB_ENV"
+    - name: Add deploy keys
+      shell: bash
+      run: |
+        add_key() {
+          key="$HOME/.ssh/$1"
+          win_key="$(cygpath -w $key)"
+          echo "$2" > "$key"
+          ssh-add "$key"
+          ssh-keygen -y -f $key > $key.pub
+          read a b comment < $key.pub
+          echo comment: $comment
+          url="${comment%.*}"
+          echo url: $url
+          host_path="${url#*@}"
+          new_host_path="$1.${host_path}"
+          new_url="git@$new_host_path"
+          echo git config --global url."${new_url}".insteadOf "${url}"
+          git config --global url."${new_url}".insteadOf "${url}"
+          cat << EOF >> $HOME/.ssh/config
+
+        Host ${new_host_path%%:*}
+          HostName github.com
+          IdentityFile $win_key
+          IdentitiesOnly yes
+        EOF
+        }
+        add_key PRIVATE_REPO_DEPLOY_KEY "${{secrets.PRIVATE_REPO_DEPLOY_KEY}}"
+        add_key PRIVATE_LFS_REPO_DEPLOY_KEY "${{secrets.PRIVATE_LFS_REPO_DEPLOY_KEY}}"
+    - name: List fingerprints
+      shell: bash
+      run: ssh-add -l
+    - name: Print git config
+      shell: bash
+      run: git config --global --list
+    - name: Print ssh config
+      shell: bash
+      run: cat $HOME/.ssh/config
+    - name: Clone a private repository
+      shell: bash
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-repository-example.git
+        cat private-repository-example/README.md
+    - name: Clone another private repository with LFS
+      shell: bash
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-lfs-repository-example.git
+        cat private-lfs-repository-example/README.md
+        unzip -v private-lfs-repository-example/empty.zip
+
+  clone_repositories_with_webfactory:
+    timeout-minutes: 30
+    runs-on: windows-latest
+
+    steps:
+    - name: webfactory/ssh-agent
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: |
+          ${{secrets.PRIVATE_REPO_DEPLOY_KEY}}
+          ${{secrets.PRIVATE_LFS_REPO_DEPLOY_KEY}}
+    - name: List fingerprints
+      shell: bash
+      run: ssh-add -l
+    - name: Print git config
+      shell: bash
+      run: git config --global --list
+    - name: Print ssh config
+      shell: bash
+      run: cat $HOME/.ssh/config
+    - name: Clone the private repository (which fails)
+      shell: bash
+      continue-on-error: true
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-repository-example.git
+    - name: Perform workarounds
+      shell: bash
+      run: |
+        mkdir -p $HOME/.ssh
+        cat << EOF > $HOME/.ssh/known_hosts
+        github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+        EOF
+    - name: Clone a private repository
+      shell: bash
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-repository-example.git
+        cat private-repository-example/README.md
+    - name: Clone another private repository with LFS
+      shell: bash
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-lfs-repository-example.git
+        cat private-lfs-repository-example/README.md
+        unzip -v private-lfs-repository-example/empty.zip
+
+  mix_ssh-agent_and_acions-checkout:
+    timeout-minutes: 30
+    runs-on: windows-latest
+
+    steps:
+    - name: webfactory/ssh-agent
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: |
+          ${{secrets.PRIVATE_LFS_REPO_DEPLOY_KEY}}
+    - name: List fingerprints
+      shell: bash
+      run: ssh-add -l
+    - name: Print git config
+      shell: bash
+      run: git config --global --list
+    - name: Print ssh config
+      shell: bash
+      run: cat $HOME/.ssh/config
+    - name: Perform workarounds
+      shell: bash
+      run: |
+        mkdir -p $HOME/.ssh
+        cat << EOF > $HOME/.ssh/known_hosts
+        github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+        EOF
+
+    - name: List fingerprints before actions/checkout
+      shell: bash
+      run: ssh-add -l
+    - name: Checkout a private repository with actions/checkout
+      uses: actions/checkout@v4
+      with:
+        repository: maroontress-tomohisa/private-repository-example
+        ssh-key: ${{secrets.PRIVATE_REPO_DEPLOY_KEY}}
+        path: private-repository
+    - name: List fingerprints after actions/checkout (which fails)
+      continue-on-error: true
+      shell: bash
+      run: ssh-add -l
+    - name: Clone another private repository with LFS (which fails)
+      continue-on-error: true
+      shell: bash
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-lfs-repository-example.git
+        cat private-lfs-repository-example/README.md
+        unzip -v private-lfs-repository-example/empty.zip
+
+    - name: Perform more workarounds (kill ssh-agent to restart)
+      shell: bash
+      run: |
+        eval `ssh-agent -k`
+        # The following lines are placebos (because we can't unset env.*):
+        echo SSH_AUTH_SOCK= >> "$GITHUB_ENV"
+        echo SSH_AGENT_PID= >> "$GITHUB_ENV"
+        # See https://github.com/actions/runner/issues/1126
+    - name: webfactory/ssh-agent
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: |
+          ${{secrets.PRIVATE_LFS_REPO_DEPLOY_KEY}}
+    - name: List fingerprints (after restarting ssh-agent)
+      shell: bash
+      run: ssh-add -l
+    - name: Clone another private repository with LFS
+      shell: bash
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-lfs-repository-example.git
+        cat private-lfs-repository-example/README.md
+        unzip -v private-lfs-repository-example/empty.zip
