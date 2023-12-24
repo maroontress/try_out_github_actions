@@ -1,0 +1,42 @@
+name: Try out "maroontress/deploy-keys" action
+
+on:
+  push:
+    branches: [ "deploy-keys" ]
+  pull_request:
+    branches: [ "deploy-keys" ]
+
+jobs:
+  clone:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    timeout-minutes: 30
+    runs-on: ${{matrix.os}}
+
+    steps:
+    - name: maroontress/deploy-keys
+      # Please pin actions to a full length commit SHA in your private repository.
+      # See: https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-third-party-actions
+      uses: maroontress/deploy-keys@v1
+      with:
+        keys: |
+          ${{secrets.PRIVATE_REPO_DEPLOY_KEY}}
+          ${{secrets.PRIVATE_LFS_REPO_DEPLOY_KEY}}
+    - name: Print git config
+      shell: bash
+      run: git config --global --list
+    - name: Print ssh config
+      shell: bash
+      run: cat $HOME/.ssh/config
+    - name: Clone private repositories
+      shell: bash
+      run: |
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-repository-example.git
+        git clone --depth 1 git@github.com:maroontress-tomohisa/private-lfs-repository-example.git
+    - name: Check files
+      shell: bash
+      run: |
+        cat private-repository-example/README.md
+        cat private-lfs-repository-example/README.md
+        unzip -v private-lfs-repository-example/empty.zip
