@@ -1,0 +1,18 @@
+name: Check image version
+
+on:
+  push:
+    branches: [ "image-version" ]
+  pull_request:
+    branches: [ "image-version" ]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Print $ImageOS and $ImageVersion
+      shell: bash
+      run: |
+        echo $ImageOS
+        echo $ImageVersion
