@@ -1,0 +1,75 @@
+name: Linux Android SDK
+
+on:
+  push:
+    branches: [ "linux-android-sdk" ]
+  pull_request:
+    branches: [ "linux-android-sdk" ]
+
+env:
+  SYSTEM_IMAGE: 'system-images;android-26;default;x86_64'
+
+jobs:
+  build:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+
+    steps:
+    # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
+    # https://github.blog/2024-01-17-github-hosted-runners-double-the-power-for-open-source/
+    - name: Enable KVM group perms
+      id: enable_kvm
+      if: runner.os == 'Linux'
+      continue-on-error: true
+      run: |
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+          | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
+    - name: Find sdkmanager
+      shell: bash
+      run: |
+        SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+        if [ ! -f "$SDKMANAGER" ] ; then
+          find $ANDROID_HOME -name "sdkmanager" -type f
+          exit 1
+        fi
+        echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+    - name: Install emulator, platform-tools, and image
+      shell: bash
+      run: |
+        echo "y" | $SDKMANAGER --install emulator
+        echo "y" | $SDKMANAGER --install platform-tools
+        echo "y" | $SDKMANAGER --install "$SYSTEM_IMAGE"
+        echo "EMULATOR=$ANDROID_HOME/emulator/emulator" >> "$GITHUB_ENV"
+        echo "ADB=$ANDROID_HOME/platform-tools/adb" >> "$GITHUB_ENV"
+    - name: Create avd
+      shell: bash
+      run: |
+        AVDMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
+        echo "no" | $AVDMANAGER create avd -n booted -k "$SYSTEM_IMAGE" --force
+    - name: List avds
+      shell: bash
+      run: $EMULATOR -list-avds
+    - name: Run emulator
+      shell: bash
+      run: |
+        ACCEL=""
+        if [ "$ENABLE_KVM" = "failure" ] ; then
+          ACCEL="-no-accel"
+        fi
+        # Without -no-audio, we need to install pulseaudio-libs
+        # sudo apt-get install libpulse0
+        nohup $EMULATOR -avd booted -no-window -no-audio -no-snapshot $ACCEL &
+        echo "Emulator starting"
+        $ADB wait-for-device shell \
+          'while [[ -z $(getprop sys.boot_completed | tr -d '\r') ]]; do sleep 5; done; input keyevent 82'
+        $ADB devices
+        $ADB shell getprop ro.product.cpu.abi
+        echo "Emulator started"
+      env:
+        ENABLE_KVM: ${{ steps.enable_kvm.outcome }}
+    - name: Run "ls" in the emulator
+      continue-on-error: true
+      shell: bash
+      run: $ADB shell "ls /"
