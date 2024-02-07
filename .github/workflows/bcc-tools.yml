@@ -1,0 +1,28 @@
+name: Ubuntu BCC tools
+
+on:
+  push:
+    branches: [ "bcc-tools" ]
+  pull_request:
+    branches: [ "bcc-tools" ]
+
+jobs:
+  build:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install bpfcc-tools
+      run: sudo apt-get install bpfcc-tools
+    - name: vfs
+      continue-on-error: true
+      run: sudo funccount-bpfcc -d 5 'vfs_*'
+    - name: tcp
+      continue-on-error: true
+      run: sudo funccount-bpfcc -d 5 'tcp_*'
+    - name: block i/o
+      continue-on-error: true
+      run: sudo funccount-bpfcc -d 5 't:block:*'
+    - name: libc getaddrinfo()
+      continue-on-error: true
+      run: sudo funccount-bpfcc -d 5 'c:getaddrinfo'
